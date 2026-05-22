@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useMemo, useRef, useState, useEffect } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, Text, Html, RoundedBox, Environment, ContactShadows } from "@react-three/drei";
 import { motion, AnimatePresence } from "framer-motion";
@@ -79,7 +79,7 @@ function PersonPortrait() {
   );
 }
 
-function StageLights({ activeLight }: { activeLight: number | null }) {
+function StageLights({ activeLight, onSelectLight }: { activeLight: number | null, onSelectLight: (id: number) => void }) {
   const left = useRef<THREE.Group>(null);
   const centre = useRef<THREE.Group>(null);
   const right = useRef<THREE.Group>(null);
@@ -100,7 +100,15 @@ function StageLights({ activeLight }: { activeLight: number | null }) {
   return (
     <group>
       {lights.map((l) => (
-        <group key={l.id} ref={l.ref} position={[l.x, -2.05, 1.05]} rotation={[0.18, l.rot, 0]}>
+        <group 
+          key={l.id} 
+          ref={l.ref} 
+          position={[l.x, -2.05, 1.05]} 
+          rotation={[0.18, l.rot, 0]}
+          onClick={(e) => { e.stopPropagation(); onSelectLight(l.id); }}
+          onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = "pointer"; }}
+          onPointerOut={() => { document.body.style.cursor = "auto"; }}
+        >
           <spotLight
             position={[0, 0.25, 0]}
             target-position={[0, 1.9, -1.6]}
@@ -137,6 +145,21 @@ function Ribbons({ burst }: { burst: number }) {
     [burst]
   );
 
+  const ribbonGeo = useMemo(() => {
+    const geo = new THREE.PlaneGeometry(0.06, 0.55, 2, 24);
+    const pos = geo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const y = pos.getY(i);
+      const angle = y * Math.PI * 6;
+      const x = pos.getX(i);
+      const z = pos.getZ(i);
+      pos.setX(i, x * Math.cos(angle) - z * Math.sin(angle));
+      pos.setZ(i, x * Math.sin(angle) + z * Math.cos(angle));
+    }
+    geo.computeVertexNormals();
+    return geo;
+  }, []);
+
   const group = useRef<THREE.Group>(null);
 
   useFrame(() => {
@@ -152,8 +175,7 @@ function Ribbons({ burst }: { burst: number }) {
   return (
     <group ref={group}>
       {ribbons.map((r, i) => (
-        <mesh key={`${burst}-${i}`} position={[r.x, r.y, r.z]} rotation={[0, 0, i * 0.4]} scale={[1, 3.5, 1]}>
-          <torusKnotGeometry args={[0.04, 0.012, 64, 8, 1, 6]} />
+        <mesh key={`${burst}-${i}`} position={[r.x, r.y, r.z]} rotation={[0, 0, i * 0.4]} geometry={ribbonGeo}>
           <meshPhysicalMaterial color={r.color} roughness={0.15} metalness={0.65} clearcoat={1.0} side={THREE.DoubleSide} />
         </mesh>
       ))}
@@ -161,7 +183,7 @@ function Ribbons({ burst }: { burst: number }) {
   );
 }
 
-function BirthdayScene({ curtainsOpen, activeLight, ribbonBurst }: { curtainsOpen: boolean, activeLight: number | null, ribbonBurst: number }) {
+function BirthdayScene({ curtainsOpen, activeLight, ribbonBurst, onSelectLight }: { curtainsOpen: boolean, activeLight: number | null, ribbonBurst: number, onSelectLight: (id: number) => void }) {
   return (
     <Canvas camera={{ position: [0, 0.45, 7.2], fov: 38 }}>
       <color attach="background" args={["#090407"]} />
@@ -169,7 +191,7 @@ function BirthdayScene({ curtainsOpen, activeLight, ribbonBurst }: { curtainsOpe
       <directionalLight position={[0, 4, 5]} intensity={1.4} color="#ffe7b8" />
       <Environment preset="night" />
 
-      <group position={[0, -0.2, 0]}>
+      <group position={[0, 0.5, 0]}>
         <mesh position={[0, -2.35, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <cylinderGeometry args={[4.25, 4.6, 0.45, 64, 1, false, 0, Math.PI]} />
           <meshStandardMaterial color="#25000d" roughness={0.62} metalness={0.18} />
@@ -182,13 +204,13 @@ function BirthdayScene({ curtainsOpen, activeLight, ribbonBurst }: { curtainsOpe
 
         <TopDrapes />
         <PersonPortrait />
-        <StageLights activeLight={activeLight} />
+        <StageLights activeLight={activeLight} onSelectLight={onSelectLight} />
         <Ribbons burst={ribbonBurst} />
         <StageCurtain side="left" open={curtainsOpen} />
         <StageCurtain side="right" open={curtainsOpen} />
       </group>
 
-      <ContactShadows position={[0, -2.52, 0]} opacity={0.45} scale={7} blur={2.6} far={4} />
+      <ContactShadows position={[0, -1.82, 0]} opacity={0.45} scale={7} blur={2.6} far={4} />
       <OrbitControls enableZoom={false} enablePan={false} minPolarAngle={1.25} maxPolarAngle={1.7} />
     </Canvas>
   );
@@ -208,31 +230,40 @@ export default function BirthdayStageLanding() {
     confetti({ particleCount: 70, spread: 120, origin: { x: 0.85, y: 0.35 } });
   };
 
+  useEffect(() => {
+    handleConfetti();
+  }, []);
+
   return (
     <main className="relative h-screen w-full overflow-hidden bg-[#090407] text-white">
-      <BirthdayScene curtainsOpen={curtainsOpen} activeLight={activeLight} ribbonBurst={ribbonBurst} />
+      <BirthdayScene curtainsOpen={curtainsOpen} activeLight={activeLight} ribbonBurst={ribbonBurst} onSelectLight={(id) => setActiveLight((prev) => (prev === id ? null : id))} />
 
       <AnimatePresence>
         {!introDone && (
           <motion.div
-            className="absolute inset-0 z-30 flex items-center justify-center bg-[#090407]"
+            className="absolute inset-0 z-30 flex items-center justify-center bg-[#090407]/50 backdrop-blur-sm"
             initial={{ opacity: 1 }}
-            exit={{ opacity: 0, transition: { duration: 0.8 } }}
+            exit={{ opacity: 0, transition: { duration: 1.2 } }}
           >
-            <motion.h1
-              className="px-6 text-center font-serif text-6xl italic tracking-tight text-[#f7d9a1] drop-shadow-[0_0_25px_rgba(247,217,161,0.45)] md:text-8xl"
-              initial={{ x: "-120vw", opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              transition={{ duration: 1.3, ease: [0.16, 1, 0.3, 1] }}
-              onAnimationComplete={() => {
-                setTimeout(() => {
-                  setIntroDone(true);
-                  setCurtainsOpen(true);
-                }, 1200);
-              }}
-            >
-              RT THE Engineer - Happy Birthday
-            </motion.h1>
+            <div className="flex flex-col gap-2 text-center font-serif italic tracking-tight text-[#f7d9a1] drop-shadow-[0_0_25px_rgba(247,217,161,0.45)]">
+              {["RT THE Engineer", "-", "Happy Birthday"].map((line, i) => (
+                <motion.div
+                  key={i}
+                  className={i === 1 ? "text-3xl md:text-5xl opacity-80" : "text-6xl md:text-8xl"}
+                  initial={{ y: 50, opacity: 0, scale: 0.9 }}
+                  animate={{ y: 1, opacity: 1, scale: 1 }}
+                  transition={{ duration: 1.2, delay: i * 0.4, ease: [0.16, 1, 0.3, 1] }}
+                  onAnimationComplete={i === 2 ? () => {
+                    setTimeout(() => {
+                      setIntroDone(true);
+                      setCurtainsOpen(true);
+                    }, 1400);
+                  } : undefined}
+                >
+                  {line}
+                </motion.div>
+              ))}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
