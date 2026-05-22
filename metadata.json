@@ -1,0 +1,6 @@
+{
+  "name": "Happy Birthday Reiss",
+  "description": "An interactive premium 3D theatre stage landing page celebrating Reiss, with opening red velvet curtains, customizable spotlight focuses, beautiful digital chime synth melodies, and live confetti cannons.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
